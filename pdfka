@@ -1,0 +1,184 @@
+#!/bin/bash
+set -e
+set -u
+set -o pipefail
+
+# Initialze Variables
+OPT_MERGE=false
+OPT_SPLIT=false
+OPT_RENAME=false
+splitDir="Split"
+EXIFTOOL="/usr/local/bin/exiftool"
+PDFGREP="/usr/local/bin/pdfgrep"
+DirsProcessed=()
+Array=( " ") # add space to array so not empty
+
+# CS is cover page (first), WS i scanned page (second)
+SejdaConsole='/Users/john/bin/sejda-console-3.2.53/bin/sejda-console'
+
+File_List=()
+
+#Write output to Log File
+set -o errexit
+readonly LOG_FILE="/tmp/PDFrename-`date +%Y-%m-%d.%H:%M`.log"
+touch $LOG_FILE
+exec > >(tee -i $LOG_FILE)
+
+#Set fonts for Help.
+NORM=`tput sgr0`
+BOLD=`tput bold`
+REV=`tput smso`
+
+#Set Script Name variable
+SCRIPT=`basename ${BASH_SOURCE[0]}`
+
+#Help function
+function HELP {
+  echo -e \\n"Help documentation for ${BOLD}${SCRIPT}.${NORM}"\\n
+  echo -e "${REV}Basic usage:${NORM} ${BOLD}$SCRIPT -m -s -r Medica -d \"Drag-drop files here\" (Need Quotes for more than one)${NORM}"\\n
+  echo "Command line switches are optional. The following switches are recognized."
+  echo "-m   Merges Files"
+  echo "-s   Splits Files"
+  echo "-r <NAME> ${NORM}    Renames Files"
+  echo "-d <Directories>${NORM}    Sets the Directories to process"
+  echo -e "-h --Displays this help message. No further functions are performed."\\n
+  echo -e "Example: Only Merge and Split - ${BOLD}${SCRIPT} -m -s -d <directories>${NORM}"\\n
+  echo -e "Example: Merge, Split and Rename - ${BOLD}${SCRIPT} -m -s -r UCare -d <directories>${NORM}"\\n
+  exit 1
+}
+
+Count_Files () {
+	#echo "find $1 -type f -iname \"*.pdf\" | grep -$2 '/*/B'"
+	fNum=$(find $1 -type f -iname "*.pdf" | grep -$2 '/*/B'  | wc -l)
+     	#echo "$fNum"
+}
+
+
+#Check the number of arguments. If none are passed, print help and exit.
+NUMARGS=$#
+#echo -e \\n"Number of arguments: $NUMARGS"
+if [ $NUMARGS -eq 0 ]; then
+  HELP
+fi
+
+while getopts 'msr:d:h' OPTION; do
+  case "$OPTION" in
+    m)	
+      OPT_MERGE=true
+      #echo "Selected -m so Merging..."
+      ;;
+
+    s)
+      echo "Splitting"
+      OPT_SPLIT=true
+      #echo "Splitting Files..."
+      ;;
+
+    r)
+      OPT_RENAME=true
+      rvalue="$OPTARG"
+      echo "The value provided is $OPTARG"
+      ;;
+    d)
+      set -f # disable glob
+      IFS=' ' # split on space characters 
+      ##Dir="$OPTARG"
+      Dir=($OPTARG) # use the split+glob operator
+      #echo "The value Dir is $OPTARG"
+      ;;
+     h) #show help
+      HELP
+      ;;
+     \?) #unrecognized option - show help
+      echo -e \\n"Option -${BOLD}$OPTARG${NORM} not allowed."
+      HELP
+      #If you just want to display a simple error message instead of the full
+      #help, remove the 2 lines above and uncomment the 2 lines below.
+      #echo -e "Use ${BOLD}$SCRIPT -h${NORM} to see the help documentation."\\n
+      #exit 2
+      ;;
+  esac
+done
+shift "$(($OPTIND -1))"
+
+
+echo "Starting main"
+##
+# Process multiple arguments to -d flag
+##
+echo "Number of args passed to -d option: ${#Dir[@]}"
+for val in "${Dir[@]}"; do
+     echo " - ${val}"
+	fullPath=$val
+	echo "Main-fullPath:$fullPath"
+	ID=`basename "$val"`
+	echo "Main-ID=$ID"
+	Path=`dirname "$val"`
+	echo "Main-Path=$Path"
+
+
+	##
+	# Merge Block
+	##
+	if [ "$OPT_MERGE" = true ] ; then
+		echo "Merging files ....... for $ID"
+		echo "Merge $SejdaConsole alternatemix --overwrite -f $fullPath/$ID-CS.pdf  $fullPath/$ID-WS.pdf -o $fullPath/$ID\(F\).pdf"
+		$SejdaConsole alternatemix --overwrite -f $fullPath/$ID-CS.pdf  $fullPath/$ID-WS.pdf -o $fullPath/$ID\(F\).pdf
+		echo -e "\n"
+	fi
+
+	##
+	# Split Block
+	##
+	if [ "$OPT_SPLIT" = true ] ; then
+		if [ ! -d $fullPath/$splitDir  ]; then
+			echo "$fullPath/$splitDir not found...Creating...."
+			mkdir $fullPath/$splitDir
+		fi
+		echo "Spliting files ....... for $ID"
+		$SejdaConsole splitbyevery --overwrite -n 2 -f $fullPath/$ID\(F\).pdf -o $fullPath/$splitDir
+		sTmp1=$(Count_Files "$fullPath/$splitDir" "v") 
+		Array=( "${Array[@]}" "Split $fullPath $sTmp1" )
+		echo "Leaving SPLIT block..."
+	fi
+	
+	##
+	# Rename Block
+	##
+	 if [ "$OPT_RENAME" = true ] ; then
+		echo "Entering RENAME block...."
+		IFS=$'\n'
+		for FILE in `ls $fullPath/$splitDir`; do
+			#echo "fullPATH: $fullPath"
+			#echo "fullPATH-Split: $fullPath/$splitDir"
+			#echo "FILE:'$FILE'"
+			tmp=$(printf '%q\n' "$FILE") #Dealing with special characters in the filename
+			#echo "'S-tmp:$tmp'"
+			#echo "PDFGREP:$PDFGREP"
+			#echo "FullPath:$fullPath"
+			#echo cmd="$PDFGREP -n 'Attachment Control Number:'  $fullPath/$splitDir/$tmp  | awk -F ' ' '{print \$5}'"
+			cmd="$PDFGREP -n 'Attachment Control Number:'  $fullPath/$splitDir/$tmp  | awk -F ' ' '{print \$5}'"
+			eval num=\$\($cmd\)
+			#echo "Num:$num"
+			#echo "PdfGrep Output: $num"
+			echo "Renaming file $FILE to B$num.pdf"
+			/bin/mv $fullPath/$splitDir/$FILE $fullPath/$splitDir/B$num.pdf
+			echo "Updating metadata for $fullPath/$splitDir/B$num.pdf"
+			$EXIFTOOL -overwrite_original_in_place -Producer=KTTS -Author=KTTS -Creator=KTTS -Subject=$rvalue -Keywords=$num -Title=$num $fullPath/$splitDir/B$num.pdf
+		done
+		rTmp1=$(Count_Files "$fullPath/$splitDir" "I")
+                Array=( "${Array[@]}" "Rename $fullPath $rTmp1 " )
+	fi 
+done  # Main Loop
+
+printf "\n"
+echo "----------------------------------------------------------------------------"
+echo -e "Method \t Directories \t\t\t Files Processed"
+echo "----------------------------------------------------------------------------"
+set -f
+for i in "${Array[@]}"
+   do
+        echo $i | awk '{print $1,"\t",$2,"\t",$3}'
+done
+echo -e "\n"
+
