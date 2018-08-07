@@ -49,8 +49,8 @@ function HELP {
 
 Count_Files () {
 	#echo "find $1 -type f -iname \"*.pdf\" | grep -$2 '/*/B'"
-	fNum=$(find $1 -type f -iname "*.pdf" | grep -$2 '/*/B'  | wc -l)
-     	#echo "$fNum"
+	fNum=$(find $1 -type f -iname "*.pdf"  | wc -l)
+     	echo $fNum
 }
 
 
@@ -84,7 +84,7 @@ while getopts 'msr:d:h' OPTION; do
       IFS=' ' # split on space characters 
       ##Dir="$OPTARG"
       Dir=($OPTARG) # use the split+glob operator
-      #echo "The value Dir is $OPTARG"
+      echo "The value Dir is $OPTARG"
       ;;
      h) #show help
       HELP
@@ -108,7 +108,8 @@ echo "Starting main"
 ##
 echo "Number of args passed to -d option: ${#Dir[@]}"
 for val in "${Dir[@]}"; do
-     echo " - ${val}"
+    echo "*********"
+    echo " - ${val}"
 	fullPath=$val
 	echo "Main-fullPath:$fullPath"
 	ID=`basename "$val"`
@@ -122,9 +123,10 @@ for val in "${Dir[@]}"; do
 	##
 	if [ "$OPT_MERGE" = true ] ; then
 		echo "Merging files ....... for $ID"
-		echo "Merge $SejdaConsole alternatemix --overwrite -f $fullPath/$ID-CS.pdf  $fullPath/$ID-WS.pdf -o $fullPath/$ID\(F\).pdf"
+		echo "Merge Block - Running: $SejdaConsole alternatemix --overwrite -f $fullPath/$ID-CS.pdf  $fullPath/$ID-WS.pdf -o $fullPath/$ID\(F\).pdf"
 		$SejdaConsole alternatemix --overwrite -f $fullPath/$ID-CS.pdf  $fullPath/$ID-WS.pdf -o $fullPath/$ID\(F\).pdf
 		echo -e "\n"
+		echo "Leaving Merge block...."
 	fi
 
 	##
@@ -136,10 +138,12 @@ for val in "${Dir[@]}"; do
 			mkdir $fullPath/$splitDir
 		fi
 		echo "Spliting files ....... for $ID"
+		echo "Split Block -  Running: "$SejdaConsole splitbyevery --overwrite -n 2 -f $fullPath/$ID\(F\).pdf -o $fullPath/$splitDir""
 		$SejdaConsole splitbyevery --overwrite -n 2 -f $fullPath/$ID\(F\).pdf -o $fullPath/$splitDir
 		sTmp1=$(Count_Files "$fullPath/$splitDir" "v") 
+		echo "sTmp1=$sTmp1"
 		Array=( "${Array[@]}" "Split $fullPath $sTmp1" )
-		echo "Leaving SPLIT block..."
+		echo "Leaving Split block..."
 	fi
 	
 	##
@@ -167,7 +171,8 @@ for val in "${Dir[@]}"; do
 			$EXIFTOOL -overwrite_original_in_place -Producer=KTTS -Author=KTTS -Creator=KTTS -Subject=$rvalue -Keywords=$num -Title=$num $fullPath/$splitDir/B$num.pdf
 		done
 		rTmp1=$(Count_Files "$fullPath/$splitDir" "I")
-                Array=( "${Array[@]}" "Rename $fullPath $rTmp1 " )
+        Array=( "${Array[@]}" "Rename $fullPath $rTmp1 " )
+        echo "Leaving Rename Block...."
 	fi 
 done  # Main Loop
 
