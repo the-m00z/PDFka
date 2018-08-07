@@ -20,9 +20,11 @@ File_List=()
 
 #Write output to Log File
 set -o errexit
-readonly LOG_FILE="/tmp/PDFrename-`date +%Y-%m-%d.%H:%M`.log"
+readonly DEBUG_FILE="/tmp/pdfka_Debug-`date +%Y-%m-%d.%H:%M`.log"
+touch $DEBUG_FILE
+exec > >(tee -i $DEBUG_FILE)
+readonly LOG_FILE="/tmp/pdfka_Runtime-`date +%Y-%m-%d.%H:%M`.log"
 touch $LOG_FILE
-exec > >(tee -i $LOG_FILE)
 
 #Set fonts for Help.
 NORM=`tput sgr0`
@@ -123,7 +125,7 @@ for val in "${Dir[@]}"; do
 	##
 	if [ "$OPT_MERGE" = true ] ; then
 		echo "Merging files ....... for $ID"
-		echo "Merge Block - Running: $SejdaConsole alternatemix --overwrite -f $fullPath/$ID-CS.pdf  $fullPath/$ID-WS.pdf -o $fullPath/$ID\(F\).pdf"
+		echo "Merge Block - Running: $SejdaConsole alternatemix --overwrite -f $fullPath/$ID-CS.pdf  $fullPath/$ID-WS.pdf -o $fullPath/$ID\(F\).pdf" | tee -a $LOG_FILE
 		$SejdaConsole alternatemix --overwrite -f $fullPath/$ID-CS.pdf  $fullPath/$ID-WS.pdf -o $fullPath/$ID\(F\).pdf
 		echo -e "\n"
 		echo "Leaving Merge block...."
@@ -138,10 +140,10 @@ for val in "${Dir[@]}"; do
 			mkdir $fullPath/$splitDir
 		fi
 		echo "Spliting files ....... for $ID"
-		echo "Split Block -  Running: "$SejdaConsole splitbyevery --overwrite -n 2 -f $fullPath/$ID\(F\).pdf -o $fullPath/$splitDir""
+		echo "Split Block -  Running: "$SejdaConsole splitbyevery --overwrite -n 2 -f $fullPath/$ID\(F\).pdf -o $fullPath/$splitDir"" | tee -a $LOG_FILE
 		$SejdaConsole splitbyevery --overwrite -n 2 -f $fullPath/$ID\(F\).pdf -o $fullPath/$splitDir
 		sTmp1=$(Count_Files "$fullPath/$splitDir" "v") 
-		echo "sTmp1=$sTmp1"
+		#echo "sTmp1=$sTmp1"
 		Array=( "${Array[@]}" "Split $fullPath $sTmp1" )
 		echo "Leaving Split block..."
 	fi
@@ -165,9 +167,9 @@ for val in "${Dir[@]}"; do
 			eval num=\$\($cmd\)
 			#echo "Num:$num"
 			#echo "PdfGrep Output: $num"
-			echo "Renaming file $FILE to B$num.pdf"
+			echo "Renaming file $FILE to B$num.pdf" | tee -a $LOG_FILE
 			/bin/mv $fullPath/$splitDir/$FILE $fullPath/$splitDir/B$num.pdf
-			echo "Updating metadata for $fullPath/$splitDir/B$num.pdf"
+			echo "Updating metadata for $fullPath/$splitDir/B$num.pdf" | tee -a $LOG_FILE
 			$EXIFTOOL -overwrite_original_in_place -Producer=KTTS -Author=KTTS -Creator=KTTS -Subject=$rvalue -Keywords=$num -Title=$num $fullPath/$splitDir/B$num.pdf
 		done
 		rTmp1=$(Count_Files "$fullPath/$splitDir" "I")
@@ -177,13 +179,13 @@ for val in "${Dir[@]}"; do
 done  # Main Loop
 
 printf "\n"
-echo "----------------------------------------------------------------------------"
-echo -e "Method \t Directories \t\t\t Files Processed"
-echo "----------------------------------------------------------------------------"
+echo "----------------------------------------------------------------------------" | tee -a $LOG_FILE
+echo -e "Method \t Directories \t\t\t Files Processed" | tee -a $LOG_FILE
+echo "----------------------------------------------------------------------------" | tee -a $LOG_FILE
 set -f
 for i in "${Array[@]}"
    do
-        echo $i | awk '{print $1,"\t",$2,"\t",$3}'
+        echo $i | awk '{print $1,"\t",$2,"\t",$3}' | tee -a $LOG_FILE
 done
 echo -e "\n"
 
