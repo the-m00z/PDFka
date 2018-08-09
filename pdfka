@@ -14,7 +14,7 @@ DirsProcessed=()
 Array=( " ") # add space to array so not empty
 
 # CS is cover page (first), WS i scanned page (second)
-SejdaConsole='/Users/john/bin/sejda-console-3.2.53/bin/sejda-console'
+SejdaConsole='/usr/local/bin/sejda-console'
 
 File_List=()
 
